@@ -90,7 +90,7 @@ export async function runUpdate(opts: {
       const installed = await installNativeArtifacts({
         dir,
         serverRepo: CLI_DEFAULTS.serverReleaseRepo,
-        clientRepo: instance.releaseRepo || CLI_DEFAULTS.clientReleaseRepo,
+        clientRepo: CLI_DEFAULTS.clientReleaseRepo,
         serverVersion,
         clientVersion,
         clientOnly,

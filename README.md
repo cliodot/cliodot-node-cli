@@ -212,9 +212,12 @@ All are **manual** (`workflow_dispatch`). Set secrets `PUBLISH_GITHUB_TOKEN` / `
 
 Native `init` / `update` download **GitHub Release tarballs** (not npm):
 
+By default both **server** and **client** tarballs are installed. Pass `--client-only` to skip the server.
+
+
 | Asset on Release `vX.Y.Z` | Source repo (default) | Used by |
 |---------------------------|----------------------|---------|
-| `cliodot-api-X.Y.Z-<os-arch>.tar.gz` | `cliodot/cliodot-community-server` | native server (`--with-server`) |
+| `cliodot-api-X.Y.Z-<os-arch>.tar.gz` | `cliodot/cliodot-community-server` | native server (default) |
 | `cliodot-client-X.Y.Z.tar.gz` | `cliodot/cliodot-community-client` | native client |
 
 Docker init pulls the GHCR tags instead.

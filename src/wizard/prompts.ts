@@ -43,8 +43,14 @@ export async function runInitWizard(opts: {
   serverVersion?: string;
   clientVersion?: string;
   withServer?: boolean;
+  clientOnly?: boolean;
 }): Promise<InitAnswers> {
-  const clientOnly = opts.withServer ? false : CLI_DEFAULTS.clientOnly;
+  const clientOnly =
+    opts.clientOnly === true
+      ? true
+      : opts.withServer === true
+        ? false
+        : CLI_DEFAULTS.clientOnly;
   p.intro(clientOnly ? "Cliodot init (client only)" : "Cliodot init");
 
   const nameRaw = await p.text({
@@ -123,9 +129,7 @@ export async function runInitWizard(opts: {
   let clientVersion =
     opts.clientVersion?.trim().replace(/^v/, "") ||
     (clientOnly ? "latest" : serverVersion);
-  let releaseRepo: string = clientOnly
-    ? CLI_DEFAULTS.clientReleaseRepo
-    : CLI_DEFAULTS.releaseRepo;
+  let releaseRepo: string = CLI_DEFAULTS.clientReleaseRepo;
   let serverImage: string = CLI_DEFAULTS.serverImage;
   let clientImage: string = CLI_DEFAULTS.clientImage;
 

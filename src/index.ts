@@ -33,7 +33,11 @@ program
   .option("--client-version <ver>", "Client version (default: latest)")
   .option(
     "--with-server",
-    "Also install/configure the API server (Mongo/Redis prompts included)"
+    "Install server + client (default). Kept for compatibility."
+  )
+  .option(
+    "--client-only",
+    "Install only the client (skip API server / Mongo / Redis prompts)"
   )
   .option("-y, --yes", "Accept defaults where prompted for start")
   .action(async (opts) => {
@@ -43,6 +47,7 @@ program
       serverVersion: opts.serverVersion,
       clientVersion: opts.clientVersion,
       withServer: opts.withServer,
+      clientOnly: opts.clientOnly,
     });
   });
 

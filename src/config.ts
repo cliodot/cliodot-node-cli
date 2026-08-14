@@ -14,7 +14,7 @@ export const CLI_DEFAULTS = {
   serverNpmPackage: "@cliodot/server",
   clientNpmPackage: "@cliodot/client",
   releaseRepo: "cliodot/cliodot-community-server",
-  clientOnly: true,
+  clientOnly: false,
   clientApiBaseUrl: "https://stg.flowfly.dev/api-core/cliodot",
   clientBillingBaseUrl: "https://stg.flowfly.dev/api-core/biller",
   clientAppUrl: "https://stg.flowfly.dev",

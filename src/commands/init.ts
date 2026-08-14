@@ -27,6 +27,7 @@ export async function runInit(opts: {
   serverVersion?: string;
   clientVersion?: string;
   withServer?: boolean;
+  clientOnly?: boolean;
 }): Promise<void> {
   const answers = await runInitWizard(opts);
   const dir = resolveInstanceDir(opts.dir || answers.dir);
@@ -104,8 +105,7 @@ export async function runInit(opts: {
       const installed = await installNativeArtifacts({
         dir,
         serverRepo: CLI_DEFAULTS.serverReleaseRepo,
-        clientRepo:
-          instance.releaseRepo || CLI_DEFAULTS.clientReleaseRepo,
+        clientRepo: CLI_DEFAULTS.clientReleaseRepo,
         serverVersion: instance.serverVersion || "latest",
         clientVersion: instance.clientVersion || "latest",
         clientOnly,
