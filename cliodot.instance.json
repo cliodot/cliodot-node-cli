@@ -13,8 +13,8 @@
     "gateways"
   ],
   "ports": {
-    "api": 8908,
-    "client": 3007
+    "api": 8901,
+    "client": 3000
   },
   "registry": "ghcr.io",
   "serverImage": "ghcr.io/arrikk/cliodot-server",
@@ -34,6 +34,6 @@
     "kind": "existing",
     "url": "redis://127.0.0.1:6379"
   },
-  "createdAt": "2026-08-14T22:33:48.199Z",
-  "updatedAt": "2026-08-14T22:33:48.199Z"
+  "createdAt": "2026-08-15T10:43:59.408Z",
+  "updatedAt": "2026-08-15T10:43:59.408Z"
 }

@@ -11,7 +11,7 @@ export const INSTALL_ENV_KEY_COMMENTS: Record<string, string[]> = {
     "Deployment posture: local | production | enterprise (controls hub publish deny, etc.).",
   ],
   JWT_SECRET: ["Secret used to sign API JWTs. Generated at init — keep private."],
-  JWT_EXPIRES_IN: ["Optional JWT lifetime override (e.g. 7d). Empty = server default."],
+  JWT_EXPIRES_IN: ["JWT lifetime (default 7d)."],
   SMTP_HOST: ["SMTP host for outbound email (OTP, magic link, notifications)."],
   SMTP_PORT: ["SMTP port (usually 587 or 465)."],
   SMTP_USER: ["SMTP username."],
@@ -46,7 +46,7 @@ export const INSTALL_ENV_KEY_COMMENTS: Record<string, string[]> = {
     "Broker for broadcast-style event fanout (default: bullmq).",
   ],
   EVENT_BROKER_STREAM: [
-    "Optional dedicated stream broker override (empty = use profile defaults).",
+    "Broker for stream delivery profile (default: redis-streams).",
   ],
   EVENT_BROKER_SCHEDULED: [
     "Broker for scheduled / delayed events (default: bullmq).",

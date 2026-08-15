@@ -29,6 +29,9 @@ export function prepareNpmPackageJson(
     ...(scripts["license:request"]
       ? { "license:request": scripts["license:request"] }
       : {}),
+    ...(scripts["sync:system-connectors"]
+      ? { "sync:system-connectors": scripts["sync:system-connectors"] }
+      : {}),
   };
   delete (pkg.scripts as any).test;
   fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n", "utf8");

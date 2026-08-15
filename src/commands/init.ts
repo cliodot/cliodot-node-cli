@@ -12,6 +12,7 @@ import {
 import { dockerLoginGhcr, dockerPull, ensureDockerAvailable } from "../runtime/docker/ghcr.js";
 import { installNativeArtifacts } from "../runtime/native/tarball.js";
 import { nativeStart } from "../runtime/native/process.js";
+import { runSyncSystemConnectorsStep } from "../runtime/sync-system-connectors.js";
 import { runInitWizard } from "../wizard/prompts.js";
 import {
   clientEnvPath,
@@ -95,7 +96,16 @@ export async function runInit(opts: {
       spinner.start("Starting compose stack");
       const code = composeUp(dir);
       spinner.stop(code === 0 ? "Stack started" : "Start failed");
-      if (code !== 0) process.exitCode = code;
+      if (code !== 0) {
+        process.exitCode = code;
+      } else if (!clientOnly) {
+        runSyncSystemConnectorsStep({
+          dir,
+          instance,
+          mode: "docker",
+          softFail: true,
+        });
+      }
     }
   } else {
     spinner.start(
@@ -129,6 +139,15 @@ export async function runInit(opts: {
     }
 
     writeInstanceEnvs(dir, instance);
+
+    if (!clientOnly) {
+      runSyncSystemConnectorsStep({
+        dir,
+        instance,
+        mode: "native",
+        softFail: true,
+      });
+    }
 
     if (answers.startAfter) {
       spinner.start("Starting native processes");

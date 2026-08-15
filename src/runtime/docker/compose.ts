@@ -121,3 +121,12 @@ export function composePs(dir: string): { status: number; stdout: string } {
 export function composeLogs(dir: string, follow: boolean): number {
   return compose(dir, follow ? ["logs", "-f"] : ["logs", "--tail", "200"]);
 }
+
+export function composeExec(
+  dir: string,
+  service: string,
+  command: string[],
+  inherit = true
+): number {
+  return compose(dir, ["exec", "-T", service, ...command], inherit);
+}

@@ -8,6 +8,7 @@ import {
 import { dockerLoginGhcr, dockerPull, ensureDockerAvailable } from "../runtime/docker/ghcr.js";
 import { installNativeArtifacts } from "../runtime/native/tarball.js";
 import { nativeStart, nativeStop } from "../runtime/native/process.js";
+import { runSyncSystemConnectorsStep } from "../runtime/sync-system-connectors.js";
 import {
   readClientEnv,
   readInstance,
@@ -78,7 +79,16 @@ export async function runUpdate(opts: {
     composeDown(dir);
     const code = composeUp(dir);
     spinner.stop(code === 0 ? "Stack recreated" : "Recreate failed");
-    if (code !== 0) process.exitCode = code;
+    if (code !== 0) {
+      process.exitCode = code;
+    } else if (!clientOnly) {
+      runSyncSystemConnectorsStep({
+        dir,
+        instance,
+        mode: "docker",
+        softFail: true,
+      });
+    }
   } else {
     const existingServer = readServerEnv(dir);
     const existingClient = readClientEnv(dir);
@@ -106,12 +116,20 @@ export async function runUpdate(opts: {
         existingServer,
         existingClient,
       });
-      nativeStart(dir, instance);
       spinner.stop(
         clientOnly
           ? `Delta secured · client ${installed.clientVersion}`
           : `Both fronts secured · server ${installed.serverVersion} · client ${installed.clientVersion}`
       );
+      if (!clientOnly) {
+        runSyncSystemConnectorsStep({
+          dir,
+          instance,
+          mode: "native",
+          softFail: true,
+        });
+      }
+      nativeStart(dir, instance);
     } catch (err) {
       spinner.stop("Update failed");
       p.log.error(err instanceof Error ? err.message : String(err));

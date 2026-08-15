@@ -111,6 +111,12 @@ function writeApiPublishPackageJson(
           "license:request":
             "node -r dotenv/config build/scripts/license-request.js",
         }),
+    ...(scripts["sync:system-connectors"]
+      ? { "sync:system-connectors": scripts["sync:system-connectors"] }
+      : {
+          "sync:system-connectors":
+            "node -r dotenv/config build/scripts/sync-system-connectors.js",
+        }),
   };
   delete pkg.workspaces;
   delete pkg.devDependencies;

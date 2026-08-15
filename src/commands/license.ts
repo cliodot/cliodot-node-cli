@@ -9,8 +9,10 @@ import {
   runCommand,
   serverDir,
 } from "../util/fs.js";
+import { runRestart } from "./restart.js";
 
 const SUPPORT_EMAIL = "cliodot@cliodot.com";
+const LICENSE_ACTIVATED_EXIT = 10;
 
 function apiBase(dir: string): string {
   const instance = readInstance(dir);
@@ -47,6 +49,11 @@ function resolveLicenseRequestScript(dir: string): {
   );
 }
 
+async function restartAfterLicense(dir: string): Promise<void> {
+  p.log.info("Restarting instance to apply the license...");
+  await runRestart({ dir });
+}
+
 export async function runLicense(opts: {
   dir?: string;
   activate?: string;
@@ -66,7 +73,7 @@ export async function runLicense(opts: {
       extra.push("--type", String(opts.type));
     }
     p.log.info(
-      `Requesting license via ${rel} (developer/trial auto-issue when approved).`
+      "Requesting license (developer/trial auto-issue when approved)."
     );
     p.log.info(
       `If this fails or stays pending, contact Cliodot support: ${SUPPORT_EMAIL}`
@@ -76,18 +83,25 @@ export async function runLicense(opts: {
       ["-r", "dotenv/config", rel, ...extra],
       { cwd, inherit: true }
     );
+    if (result.status === LICENSE_ACTIVATED_EXIT) {
+      p.log.success("License activated.");
+      await restartAfterLicense(dir);
+      return;
+    }
     if (result.status !== 0) {
       p.log.error(
         `License request failed. Contact ${SUPPORT_EMAIL} if you need help.`
       );
       process.exitCode = result.status || 1;
+      return;
     }
+    p.log.info("License request pending review — instance left running.");
     return;
   }
 
   if (opts.activate) {
     const spinner = p.spinner();
-    spinner.start(`Activating against ${base}`);
+    spinner.start("Activating license");
     const result = await activateLicense({
       apiBaseUrl: base,
       key: opts.activate,
@@ -103,6 +117,7 @@ export async function runLicense(opts: {
     if (result.data) {
       p.note(JSON.stringify(result.data, null, 2), "License");
     }
+    await restartAfterLicense(dir);
     return;
   }
 
