@@ -173,6 +173,17 @@ function installFilledDefaults(instance: CliodotInstance): Record<string, string
     BASE_DOMAIN: "flowsync.com",
     CLOUDINARY_FOLDER: "cliodot-moments",
     LOG_LEVEL: instance.mode === "local" ? "info" : "error",
+    ENABLE_DB_TRANSACTIONS: "false",
+    ENABLE_WORKFLOW_DB_TRANSACTIONS: "false",
+    STAKE_DB_TRANSACTIONS: "false",
+    CONNECTOR_OAUTH_FRONTEND_CALLBACK_URL: "",
+    COMMERCIAL_RENEWAL_QUEUE_ENABLED: "true",
+    COMMERCIAL_RENEWAL_SCAN_BATCH: "1000",
+    COMMERCIAL_RENEWAL_MAX_ENQUEUE_PER_SCAN: "50000",
+    COMMERCIAL_RENEWAL_WORKER_CONCURRENCY: "10",
+    COMMERCIAL_RENEWAL_LEASE_MS: "600000",
+    COMMERCIAL_RENEWAL_STALE_PROCESSING_HOURS: "48",
+    COMMERCIAL_RENEWAL_SCAN_LOCK_TTL_MS: "240000",
   };
 }
 
@@ -199,6 +210,9 @@ export function buildEnvValues(
     } else if (
       k.startsWith("EVENT_BROKER_") ||
       k.startsWith("CONNECTOR_") ||
+      k.startsWith("COMMERCIAL_RENEWAL_") ||
+      k.startsWith("ENABLE_") ||
+      k === "STAKE_DB_TRANSACTIONS" ||
       k.endsWith("_CACHE_ENABLED") ||
       k.endsWith("_CACHE_BACKEND") ||
       k === "STORAGE_TYPE" ||
@@ -230,7 +244,11 @@ export function buildEnvValues(
     DEPLOYMENT_ID: instance.name || "local-dev",
     DEPLOYMENT_REF: apiUrl,
     CONNECTOR_OAUTH_CALLBACK_URL: `${clientUrl}/api/connectors/oauth/callback`,
+    CONNECTOR_OAUTH_FRONTEND_CALLBACK_URL: `${clientUrl}/api/connectors/oauth/callback`,
     OAUTH_APPS_API_HOST: apiUrl,
+    ENABLE_DB_TRANSACTIONS: "false",
+    ENABLE_WORKFLOW_DB_TRANSACTIONS: "false",
+    STAKE_DB_TRANSACTIONS: "false",
     LOG_LEVEL: instance.mode === "local" ? "info" : "error",
     ...secrets,
     ...appFeatureEnv(instance.apps),

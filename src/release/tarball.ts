@@ -104,8 +104,13 @@ function writeApiPublishPackageJson(
   pkg.private = false;
   pkg.publishConfig = { access: "public" };
   pkg.scripts = {
-    ...(scripts.start ? { start: scripts.start } : { start: "node ./build/app.js" }),
-    ...(scripts.test ? { test: scripts.test } : {}),
+    start: scripts.start || "node ./build/app.js",
+    ...(scripts["license:request"]
+      ? { "license:request": scripts["license:request"] }
+      : {
+          "license:request":
+            "node -r dotenv/config build/scripts/license-request.js",
+        }),
   };
   delete pkg.workspaces;
   delete pkg.devDependencies;
@@ -226,7 +231,7 @@ export function buildApiNativeTarball(opts: {
   const version = normalizeVersion(opts.version);
   const slug = opts.platform || platformSlug();
   const staging = stageApiRelease({ ...opts, withNodeModules: true });
-  const asset = `cliodot-api-${version}-${slug}.tar.gz`;
+  const asset = `cliodot-api-${version}.tar.gz`;
   const outPath = path.join(opts.outDir, asset);
   packStagingTarball(staging, outPath);
   return outPath;

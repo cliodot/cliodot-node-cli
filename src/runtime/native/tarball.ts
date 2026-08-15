@@ -11,21 +11,13 @@ import {
   missionStatus,
 } from "./mission-status.js";
 
-function platformSlug(): string {
-  const p = process.platform;
-  const a = process.arch;
-  const osPart = p === "darwin" ? "darwin" : p === "win32" ? "win" : "linux";
-  const archPart = a === "arm64" ? "arm64" : "x64";
-  return `${osPart}-${archPart}`;
-}
-
 export function releaseAssetNames(version: string): {
   server: string;
   client: string;
 } {
   const ver = version.replace(/^v/, "");
   return {
-    server: `cliodot-api-${ver}-${platformSlug()}.tar.gz`,
+    server: `cliodot-api-${ver}.tar.gz`,
     client: `cliodot-client-${ver}.tar.gz`,
   };
 }
@@ -205,7 +197,7 @@ export async function downloadReleaseAsset(opts: {
           .replace(/-latest\.tar\.gz$/, `-${resolved}.tar.gz`)
       : opts.version.toLowerCase() === "latest"
         ? opts.assetName
-            .replace(`cliodot-api-latest-`, `cliodot-api-${resolved}-`)
+            .replace(`cliodot-api-latest.tar.gz`, `cliodot-api-${resolved}.tar.gz`)
             .replace(
               `cliodot-client-latest.tar.gz`,
               `cliodot-client-${resolved}.tar.gz`

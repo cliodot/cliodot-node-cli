@@ -15,7 +15,7 @@ import {
   packStagingTarball,
   stageApiRelease,
 } from "./tarball.js";
-import { findRepoRoot, normalizeVersion, platformSlug, rmrf } from "./util.js";
+import { findRepoRoot, normalizeVersion, rmrf } from "./util.js";
 import { resolveReleaseStageFlags } from "./stages.js";
 
 export type ReleaseServerOptions = {
@@ -211,7 +211,7 @@ export async function releaseServer(opts: ReleaseServerOptions): Promise<void> {
       failures.push("tarball: skipped (no staging)");
     } else {
       try {
-        const asset = `cliodot-api-${version}-${platformSlug()}.tar.gz`;
+        const asset = `cliodot-api-${version}.tar.gz`;
         const outPath = path.join(outDir, asset);
         packStagingTarball(staging, outPath);
         assets.push(outPath);

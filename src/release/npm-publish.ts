@@ -26,8 +26,11 @@ export function prepareNpmPackageJson(
       : {};
   pkg.scripts = {
     ...(scripts.start ? { start: scripts.start } : {}),
-    ...(scripts.test ? { test: scripts.test } : {}),
+    ...(scripts["license:request"]
+      ? { "license:request": scripts["license:request"] }
+      : {}),
   };
+  delete (pkg.scripts as any).test;
   fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n", "utf8");
 }
 

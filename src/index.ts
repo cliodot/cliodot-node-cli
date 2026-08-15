@@ -120,14 +120,21 @@ program
 
 program
   .command("license")
-  .description("Activate or inspect license against the running API")
+  .description("Request, activate, or inspect a Cliodot license")
   .option("--dir <path>", "Instance directory", process.cwd())
+  .option(
+    "--request",
+    "Interactive license request (auto-issues developer/trial when approved)"
+  )
+  .option("--type <type>", "License type for --request (omit for developer)")
   .option("--activate <key>", "Activation key")
   .option("--status", "Fetch license status")
   .option("--token <jwt>", "Admin JWT for status (or CLIODOT_ADMIN_TOKEN)")
   .action(async (opts) => {
     await runLicense({
       dir: opts.dir,
+      request: opts.request,
+      type: opts.type,
       activate: opts.activate,
       status: opts.status,
       token: opts.token,

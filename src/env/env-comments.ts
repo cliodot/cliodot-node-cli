@@ -24,6 +24,15 @@ export const INSTALL_ENV_KEY_COMMENTS: Record<string, string[]> = {
   TOKENIZER_SECRET_KEY: ["Secret for tokenizing sensitive connector fields."],
   GOOGLE_CLIENT_ID: ["Google OAuth client id (if using Google login)."],
   REDIS_URL: ["Primary Redis URL (queues, cache, sessions, BullMQ)."],
+  ENABLE_DB_TRANSACTIONS: [
+    "Enable MongoDB sessions/transactions on API requests (default false).",
+  ],
+  ENABLE_WORKFLOW_DB_TRANSACTIONS: [
+    "Enable MongoDB transactions around workflow execution (default false).",
+  ],
+  STAKE_DB_TRANSACTIONS: [
+    "Stake/special-case DB transaction flag (default false).",
+  ],
   EVENT_BROKER_FAST: [
     "Broker for fast/low-latency event delivery profiles (default: bullmq).",
   ],
@@ -201,6 +210,30 @@ export const INSTALL_ENV_KEY_COMMENTS: Record<string, string[]> = {
   ],
   CONNECTOR_OAUTH_CALLBACK_URL: [
     "OAuth redirect/callback URL for connector OAuth installs (client origin + /api/connectors/oauth/callback).",
+  ],
+  CONNECTOR_OAUTH_FRONTEND_CALLBACK_URL: [
+    "Frontend-facing OAuth callback URL (often same host as CONNECTOR_OAUTH_CALLBACK_URL).",
+  ],
+  COMMERCIAL_RENEWAL_QUEUE_ENABLED: [
+    "Enable Commercial Apps subscription renewal queue worker (default true).",
+  ],
+  COMMERCIAL_RENEWAL_SCAN_BATCH: [
+    "Max subscriptions scanned per commercial renewal scan cycle.",
+  ],
+  COMMERCIAL_RENEWAL_MAX_ENQUEUE_PER_SCAN: [
+    "Max renewal jobs enqueued per scan cycle.",
+  ],
+  COMMERCIAL_RENEWAL_WORKER_CONCURRENCY: [
+    "BullMQ concurrency for commercial renewal workers.",
+  ],
+  COMMERCIAL_RENEWAL_LEASE_MS: [
+    "Lease duration for commercial renewal processing locks (ms).",
+  ],
+  COMMERCIAL_RENEWAL_STALE_PROCESSING_HOURS: [
+    "Hours before a processing renewal is considered stale.",
+  ],
+  COMMERCIAL_RENEWAL_SCAN_LOCK_TTL_MS: [
+    "TTL for the commercial renewal scan lock (ms).",
   ],
   OAUTH_APPS_API_HOST: [
     "Public API host used by OAuth Apps (usually the Cliodot API origin).",
