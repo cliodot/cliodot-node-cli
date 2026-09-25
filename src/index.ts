@@ -11,6 +11,18 @@ import { runStatus } from "./commands/status.js";
 import { runLogs } from "./commands/logs.js";
 import { runLicense } from "./commands/license.js";
 import { runLogin } from "./commands/login.js";
+import {
+  runAuthGithub,
+  runAuthLogin,
+  runAuthLogout,
+  runAuthStatus,
+} from "./commands/auth.js";
+import {
+  runWorkspaceExport,
+  runWorkspaceImport,
+  runWorkspacePull,
+  runWorkspacePush,
+} from "./commands/workspace.js";
 import { runReleaseServer, runReleaseClient, runReleaseCli, runReleaseUpload } from "./commands/release.js";
 import { loadLocalEnv } from "./util/fs.js";
 import { CLI_DEFAULTS } from "./config.js";
@@ -148,6 +160,111 @@ program
   .option("--token <pat>", "GitHub PAT (sets GHCR_TOKEN / GITHUB_TOKEN for this process)")
   .action(async (opts) => {
     await runLogin({ dir: opts.dir, token: opts.token });
+  });
+
+const auth = program
+  .command("auth")
+  .description("Log in to a Cliodot API so the CLI can push/pull workspaces");
+
+auth
+  .command("login")
+  .description("Open the app in a browser to log in (stores ~/.cliodot/auth.json)")
+  .option("--api-url <url>", "Cliodot API base (default: staging)")
+  .option("--app-url <url>", "Frontend origin (default: inferred from API URL)")
+  .option("--api-key <key>", "API key (CI / non-interactive)")
+  .option("--api-secret <secret>", "API secret")
+  .option("--github-token <pat>", "Optional GitHub token (otherwise uses gh/git on this machine)")
+  .action(async (opts) => {
+    await runAuthLogin({
+      apiUrl: opts.apiUrl,
+      appUrl: opts.appUrl,
+      apiKey: opts.apiKey,
+      apiSecret: opts.apiSecret,
+      githubToken: opts.githubToken,
+    });
+  });
+
+auth
+  .command("logout")
+  .description("Clear stored Cliodot credentials")
+  .action(async () => {
+    await runAuthLogout();
+  });
+
+auth
+  .command("status")
+  .description("Show current Cliodot login")
+  .action(async () => {
+    await runAuthStatus();
+  });
+
+auth
+  .command("github")
+  .description("Use this machine's GitHub login (gh/git), or store a token")
+  .option("--token <pat>", "Optional GitHub token (otherwise uses gh auth / git credentials)")
+  .option("--clear", "Forget a stored token and go back to the local GitHub session")
+  .action(async (opts) => {
+    await runAuthGithub({ token: opts.token, clear: opts.clear });
+  });
+
+const workspace = program
+  .command("workspace")
+  .description("Export, import, and sync workspace bundles with GitHub");
+
+workspace
+  .command("push")
+  .description("Export a project and write it to a GitHub repo")
+  .option("--project <id>", "Project id")
+  .option("--repo <owner/name>", "GitHub repository")
+  .option("--path <path>", "File path in the repo")
+  .option("--branch <branch>", "Branch", "main")
+  .option("--message <message>", "Commit message")
+  .option("--github-token <pat>", "Optional GitHub token (otherwise uses gh/git on this machine)")
+  .action(async (opts) => {
+    await runWorkspacePush({
+      project: opts.project,
+      repo: opts.repo,
+      path: opts.path,
+      branch: opts.branch,
+      message: opts.message,
+      githubToken: opts.githubToken,
+    });
+  });
+
+workspace
+  .command("pull")
+  .description("Read a workspace bundle from GitHub and import it into this tenant")
+  .option("--repo <owner/name>", "GitHub repository")
+  .option("--path <path>", "File path in the repo")
+  .option("--branch <branch>", "Branch", "main")
+  .option("--name <name>", "Name for the imported project")
+  .option("--github-token <pat>", "Optional GitHub token (otherwise uses gh/git on this machine)")
+  .action(async (opts) => {
+    await runWorkspacePull({
+      repo: opts.repo,
+      path: opts.path,
+      branch: opts.branch,
+      name: opts.name,
+      githubToken: opts.githubToken,
+    });
+  });
+
+workspace
+  .command("export")
+  .description("Export a project bundle to a local JSON file")
+  .option("--project <id>", "Project id")
+  .option("--out <file>", "Write to file (default: stdout)")
+  .action(async (opts) => {
+    await runWorkspaceExport({ project: opts.project, out: opts.out });
+  });
+
+workspace
+  .command("import")
+  .description("Import a local workspace bundle JSON into this tenant")
+  .option("--file <path>", "Bundle JSON path")
+  .option("--name <name>", "Name for the imported project")
+  .action(async (opts) => {
+    await runWorkspaceImport({ file: opts.file, name: opts.name });
   });
 
 const release = program

@@ -1,6 +1,10 @@
 import path from "path";
 import * as p from "@clack/prompts";
-import { CLI_DEFAULTS, isCommunityReleaseRepo } from "../config.js";
+import {
+  CLI_DEFAULTS,
+  isCommunityReleaseRepo,
+  mirrorsReleaseBuild,
+} from "../config.js";
 import { buildAndPushApiImage } from "./docker.js";
 import {
   assertRepoAccessible,
@@ -59,6 +63,7 @@ export async function releaseServer(opts: ReleaseServerOptions): Promise<void> {
   const outDir = path.join(workRoot, ".cliodot-release", "server", version);
   const releaseRepo = opts.releaseRepo || CLI_DEFAULTS.serverReleaseRepo;
   const community = isCommunityReleaseRepo(releaseRepo);
+  const mirrorBuild = mirrorsReleaseBuild(releaseRepo);
   const isPublic = opts.public !== false;
   const obfuscate = community
     ? false
@@ -82,7 +87,11 @@ export async function releaseServer(opts: ReleaseServerOptions): Promise<void> {
   if (stages.only) {
     p.log.info(`stages: ${[...stages.only].join(", ")}`);
   } else {
-    p.log.info(`order: docker → npm → community push (-f) → tarball release (stages continue on failure)`);
+    p.log.info(
+      `order: docker → npm → ${
+        mirrorBuild ? "build push (-f, no src) → " : ""
+      }tarball release (stages continue on failure)`
+    );
   }
   p.log.info(`artifact release repo: ${releaseRepo}`);
   p.log.info(`GHCR image: ${image}`);
@@ -223,8 +232,8 @@ export async function releaseServer(opts: ReleaseServerOptions): Promise<void> {
     }
   }
 
-  if (upload && staging && community) {
-    spinner.start(`Force-pushing server build to ${releaseRepo} (-f)`);
+  if (upload && staging && mirrorBuild) {
+    spinner.start(`Force-pushing server build to ${releaseRepo} (-f, no src)`);
     try {
       const mirrorUrl = await forcePushCommunityMirror({
         repo: releaseRepo,
@@ -233,12 +242,12 @@ export async function releaseServer(opts: ReleaseServerOptions): Promise<void> {
         kind: "server",
         workRoot,
       });
-      spinner.stop(`Pushed community mirror → ${mirrorUrl}`);
+      spinner.stop(`Pushed build → ${mirrorUrl}`);
       produced.push(mirrorUrl);
     } catch (err) {
-      spinner.stop("Community mirror push failed");
+      spinner.stop("Build push failed");
       p.log.warn(errMsg(err));
-      failures.push(`community-push: ${errMsg(err)}`);
+      failures.push(`build-push: ${errMsg(err)}`);
     }
   }
 

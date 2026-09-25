@@ -38,9 +38,9 @@ Public community installs do **not** need a GitHub token.
 
 ```bash
 mkdir my-cliodot && cd my-cliodot
-npx cliodot init
-npx cliodot start
-npx cliodot status
+cliodot init
+cliodot start
+cliodot status
 ```
 
 The wizard asks for:
@@ -102,11 +102,11 @@ All commands accept `--dir <path>` (defaults to the current working directory).
 ### Init
 
 ```bash
-npx cliodot init
-npx cliodot init --dir ./my-instance
-npx cliodot init --server-version 0.0.1 --client-version 0.0.1
-npx cliodot init --client-only
-npx cliodot init -y
+cliodot init
+cliodot init --dir ./my-instance
+cliodot init --server-version 0.0.1 --client-version 0.0.1
+cliodot init --client-only
+cliodot init -y
 ```
 
 `npx cliodot init` alone runs the full interactive wizard.
@@ -114,21 +114,21 @@ npx cliodot init -y
 ### Lifecycle
 
 ```bash
-npx cliodot start
-npx cliodot stop
-npx cliodot restart
-npx cliodot status
-npx cliodot logs
-npx cliodot logs -f
+cliodot start
+cliodot stop
+cliodot restart
+cliodot status
+cliodot logs
+cliodot logs -f
 ```
 
 ### Update
 
 ```bash
-npx cliodot update
-npx cliodot update --server 1.2.3
-npx cliodot update --client 1.2.3
-npx cliodot update --server 1.2.3 --client 1.2.3
+cliodot update
+cliodot update --server 1.2.3
+cliodot update --client 1.2.3
+cliodot update --server 1.2.3 --client 1.2.3
 ```
 
 ### License
@@ -136,12 +136,12 @@ npx cliodot update --server 1.2.3 --client 1.2.3
 Request a license for your instance. **Developer** is the default (no `--type` needed) and is auto-issued when the request succeeds, along with **trial**. If the request fails or stays pending, contact Cliodot support at **cliodot@cliodot.com**.
 
 ```bash
-npx cliodot license --request
-npx cliodot license --request --type trial
-npx cliodot license --request --type starter
-npx cliodot license --activate YOUR_ACTIVATION_KEY
-npx cliodot license --status
-npx cliodot license --status --token "$CLIODOT_ADMIN_TOKEN"
+cliodot license --request
+cliodot license --request --type trial
+cliodot license --request --type starter
+cliodot license --activate YOUR_ACTIVATION_KEY
+cliodot license --status
+cliodot license --status --token "$CLIODOT_ADMIN_TOKEN"
 ```
 
 Or from the installed server package:
@@ -158,6 +158,42 @@ Community public assets need no login. For **private** images or release assets:
 npx cliodot login --token ghp_your_pat
 ```
 
+`cliodot login` is only for GHCR / GitHub Releases. To push and pull **workspace bundles**, log into a Cliodot API separately:
+
+```bash
+cliodot auth login
+cliodot auth status
+cliodot auth github
+cliodot auth logout
+```
+
+`cliodot auth github` uses the GitHub session already on your machine (`gh auth login`, `GITHUB_TOKEN`, or `git credential` for github.com). `--token` is only needed if nothing is connected. SSH remotes cannot call the GitHub API.
+
+Credentials are stored at `~/.cliodot/auth.json`. `auth login` opens the app (`/cli-login?session=...`). Sign in there; the CLI waits. No email or password on the terminal.
+
+```bash
+cliodot auth login --api-url http://localhost:8901
+cliodot auth login --api-key ck_... --api-secret sk_...
+```
+
+### Workspace (GitHub)
+
+Requires `cliodot auth login`. GitHub comes from this machine's `gh`/git session unless you pass `--github-token`.
+
+```bash
+cliodot workspace push --project <projectId> --repo owner/name
+cliodot workspace pull --repo owner/name --path cliodot/workspaces/my-project.workspace.json
+cliodot workspace export --project <projectId> --out ./workspace.json
+cliodot workspace import --file ./workspace.json
+```
+
+The same GitHub sync is available from the API:
+
+- `POST /api-core/cliodot/projects/:projectId/export/github`
+- `POST /api-core/cliodot/workspace/import/github`
+
+Body: `{ "repo": "owner/name", "path": "...", "branch": "main", "github_token": "..." }`. Token can also be sent as `X-GitHub-Token`. The server does not store the GitHub token. Secrets are stripped on export; import remaps IDs onto the destination tenant.
+
 ---
 
 ## Typical workflows
@@ -166,25 +202,25 @@ npx cliodot login --token ghp_your_pat
 
 ```bash
 mkdir ~/cliodot-dev && cd ~/cliodot-dev
-npx cliodot init
-npx cliodot start
-npx cliodot license --request
+cliodot init
+cliodot start
+cliodot license --request
 ```
 
 **Client pointed at a remote API**
 
 ```bash
-npx cliodot init --client-only
-npx cliodot start
+cliodot init --client-only
+cliodot start
 ```
 
 **Upgrade later**
 
 ```bash
 cd ~/cliodot-dev
-npx cliodot stop
-npx cliodot update
-npx cliodot start
+cliodot stop
+cliodot update
+cliodot start
 ```
 
 ---
@@ -205,7 +241,7 @@ npx cliodot start
 ## Help
 
 ```bash
-npx cliodot --help
-npx cliodot init --help
-npx cliodot update --help
+cliodot --help
+cliodot init --help
+cliodot update --help
 ```

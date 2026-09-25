@@ -102,7 +102,11 @@ export async function forcePushCommunityMirror(opts: {
     : null;
 
   wipeWorktree(mirrorRoot);
-  copyDir(opts.stagingDir, mirrorRoot, new Set(["node_modules", ".git"]));
+  copyDir(
+    opts.stagingDir,
+    mirrorRoot,
+    new Set(["node_modules", ".git", "src"])
+  );
 
   if (!fs.existsSync(path.join(mirrorRoot, "LICENSE")) && licenseBackup) {
     fs.writeFileSync(licensePath, licenseBackup);
@@ -113,7 +117,7 @@ export async function forcePushCommunityMirror(opts: {
     fs.writeFileSync(
       readme,
       [
-        `# Cliodot community ${opts.kind}`,
+        `# Cliodot ${opts.repo.includes("enterprise") ? "enterprise" : "community"} ${opts.kind}`,
         "",
         `Published build for version \`${opts.version}\`.`,
         "",

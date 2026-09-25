@@ -142,6 +142,16 @@ export function runCommand(
   };
 }
 
+export function openBrowser(url: string): boolean {
+  if (process.platform === "darwin") {
+    return runCommand("open", [url]).status === 0;
+  }
+  if (process.platform === "win32") {
+    return runCommand("cmd", ["/c", "start", "", url]).status === 0;
+  }
+  return runCommand("xdg-open", [url]).status === 0;
+}
+
 export function commandExists(command: string): boolean {
   const probe = process.platform === "win32" ? "where" : "which";
   const result = spawnSync(probe, [command], { encoding: "utf8" });

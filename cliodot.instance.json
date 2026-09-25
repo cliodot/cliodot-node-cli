@@ -1,5 +1,5 @@
 {
-  "name": "acme",
+  "name": "flash",
   "runtime": "native",
   "mode": "local",
   "apps": [
@@ -28,12 +28,12 @@
   "mongo": {
     "kind": "atlas",
     "uri": "mongodb://127.0.0.1:27017",
-    "name": "acme"
+    "name": "flash"
   },
   "redis": {
     "kind": "existing",
     "url": "redis://127.0.0.1:6379"
   },
-  "createdAt": "2026-08-15T10:43:59.408Z",
-  "updatedAt": "2026-08-15T10:43:59.408Z"
+  "createdAt": "2026-08-15T14:07:33.564Z",
+  "updatedAt": "2026-08-15T14:07:33.564Z"
 }

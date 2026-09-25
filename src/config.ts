@@ -8,6 +8,8 @@ export const CLI_DEFAULTS = {
   cliRepo: "Arrikk/flowsync-api",
   serverReleaseRepo: "cliodot/cliodot-community-server",
   clientReleaseRepo: "cliodot/cliodot-community-client",
+  serverEnterpriseReleaseRepo: "cliodot/cliodot-enterprise-server",
+  clientEnterpriseReleaseRepo: "cliodot/cliodot-enterprise-client",
   cliReleaseRepo: "Arrikk/cliodot",
   cliPackagePath: "packages/cliodot-cli",
   cliNpmPackage: "@cliodot/cli",
@@ -33,6 +35,21 @@ export function isCommunityReleaseRepo(repo: string): boolean {
     value.endsWith("/cliodot-community-server") ||
     value.endsWith("/cliodot-community-client")
   );
+}
+
+export function isEnterpriseReleaseRepo(repo: string): boolean {
+  const value = String(repo || "").trim().toLowerCase();
+  return (
+    value === CLI_DEFAULTS.serverEnterpriseReleaseRepo.toLowerCase() ||
+    value === CLI_DEFAULTS.clientEnterpriseReleaseRepo.toLowerCase() ||
+    value.endsWith("/cliodot-enterprise-server") ||
+    value.endsWith("/cliodot-enterprise-client")
+  );
+}
+
+/** Community and enterprise release repos receive the staged build, not source. */
+export function mirrorsReleaseBuild(repo: string): boolean {
+  return isCommunityReleaseRepo(repo) || isEnterpriseReleaseRepo(repo);
 }
 
 export const SELECTABLE_APPS = [
