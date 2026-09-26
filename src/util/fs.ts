@@ -72,7 +72,8 @@ export function readEnvFile(file: string): Record<string, string> {
     if (!trimmed || trimmed.startsWith("#")) continue;
     const eq = trimmed.indexOf("=");
     if (eq < 0) continue;
-    const key = trimmed.slice(0, eq).trim();
+    let key = trimmed.slice(0, eq).trim();
+    if (key.startsWith("export ")) key = key.slice("export ".length).trim();
     let value = trimmed.slice(eq + 1).trim();
     if (
       (value.startsWith('"') && value.endsWith('"')) ||
@@ -167,13 +168,42 @@ export function slugify(name: string): string {
     .slice(0, 64) || "cliodot";
 }
 
+const TOKEN_ENV_KEYS = [
+  "GITHUB_TOKEN",
+  "GHCR_TOKEN",
+  "GH_TOKEN",
+  "NPM_TOKEN",
+  "NODE_AUTH_TOKEN",
+  "PUBLISH_NPM_TOKEN",
+] as const;
+
+const tokenSources: Partial<Record<(typeof TOKEN_ENV_KEYS)[number], string>> = {};
+
+function trimToken(value?: string): string | undefined {
+  const next = String(value || "").trim();
+  return next || undefined;
+}
+
 export function getGithubToken(): string | undefined {
   return (
-    process.env.GHCR_TOKEN ||
-    process.env.GITHUB_TOKEN ||
-    process.env.GH_TOKEN ||
+    trimToken(process.env.GHCR_TOKEN) ||
+    trimToken(process.env.GITHUB_TOKEN) ||
+    trimToken(process.env.GH_TOKEN) ||
     undefined
   );
+}
+
+export function describeGithubTokenSource(): string | undefined {
+  if (trimToken(process.env.GHCR_TOKEN)) {
+    return tokenSources.GHCR_TOKEN || "environment";
+  }
+  if (trimToken(process.env.GITHUB_TOKEN)) {
+    return tokenSources.GITHUB_TOKEN || "environment";
+  }
+  if (trimToken(process.env.GH_TOKEN)) {
+    return tokenSources.GH_TOKEN || "environment";
+  }
+  return undefined;
 }
 
 export function getNpmToken(): string | undefined {
@@ -185,21 +215,50 @@ export function getNpmToken(): string | undefined {
   );
 }
 
+function collectEnvCandidates(extraDirs: string[] = []): string[] {
+  const files: string[] = [];
+  const add = (file: string) => files.push(path.resolve(file));
+  add(path.join(process.cwd(), CLI_DEFAULTS.envFile));
+  for (const dir of extraDirs) {
+    add(path.join(dir, CLI_DEFAULTS.envFile));
+  }
+  let dir = path.resolve(process.cwd());
+  for (;;) {
+    add(path.join(dir, CLI_DEFAULTS.envFile));
+    add(path.join(dir, CLI_DEFAULTS.cliPackagePath, CLI_DEFAULTS.envFile));
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return files;
+}
+
 export function loadLocalEnv(extraDirs: string[] = []): void {
-  const candidates = [
-    path.join(process.cwd(), CLI_DEFAULTS.envFile),
-    ...extraDirs.map((d) => path.join(d, CLI_DEFAULTS.envFile)),
-  ];
   const seen = new Set<string>();
-  for (const file of candidates) {
+  const cliEnvFiles: string[] = [];
+  const generalFiles: string[] = [];
+  for (const file of collectEnvCandidates(extraDirs)) {
     const abs = path.resolve(file);
     if (seen.has(abs) || !fs.existsSync(abs)) continue;
     seen.add(abs);
-    const values = readEnvFile(abs);
-    for (const [key, value] of Object.entries(values)) {
-      if (process.env[key] === undefined || process.env[key] === "") {
-        process.env[key] = value;
-      }
+    if (abs.replace(/\\/g, "/").endsWith(`/${CLI_DEFAULTS.cliPackagePath}/${CLI_DEFAULTS.envFile}`)) {
+      cliEnvFiles.push(abs);
+    } else {
+      generalFiles.push(abs);
     }
   }
+  const apply = (file: string, overrideTokens: boolean) => {
+    const values = readEnvFile(file);
+    for (const [key, value] of Object.entries(values)) {
+      const empty = process.env[key] === undefined || process.env[key] === "";
+      const isToken = (TOKEN_ENV_KEYS as readonly string[]).includes(key);
+      if (!empty && !(overrideTokens && isToken)) continue;
+      process.env[key] = value;
+      if (isToken) {
+        tokenSources[key as (typeof TOKEN_ENV_KEYS)[number]] = file;
+      }
+    }
+  };
+  for (const file of generalFiles) apply(file, false);
+  for (const file of cliEnvFiles) apply(file, true);
 }

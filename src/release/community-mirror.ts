@@ -1,40 +1,104 @@
 import fs from "fs";
 import path from "path";
 import { getGithubToken, runCommand } from "../util/fs.js";
+import { ensureRepoHasCommit, getRepoDefaultBranch } from "./github.js";
 import { ensureDir, rmrf } from "./util.js";
 
-function copyDir(
-  src: string,
-  dest: string,
-  skipNames: Set<string> = new Set(["node_modules", ".git"])
-): void {
+function isSecretEnvFile(name: string): boolean {
+  if (name === ".env.example" || name === "env.example") return false;
+  return name === ".env" || name.startsWith(".env.");
+}
+
+const FULL_SOURCE_SKIP = new Set([
+  "node_modules",
+  ".git",
+  ".DS_Store",
+  ".cliodot-release",
+  ".cliodot",
+  ".yarn-cache",
+  ".yarn",
+  ".turbo",
+  "coverage",
+  ".nyc_output",
+  ".keys",
+  ".next",
+]);
+
+function shouldSkipMirrorEntry(name: string, fullSource: boolean): boolean {
+  if (name === "node_modules" || name === ".git" || name === ".DS_Store") {
+    return true;
+  }
+  if (isSecretEnvFile(name)) return true;
+  if (fullSource) {
+    return (
+      FULL_SOURCE_SKIP.has(name) ||
+      name.endsWith(".tar.gz") ||
+      name.endsWith(".tgz")
+    );
+  }
+  return name === "src";
+}
+
+function copyDir(src: string, dest: string, fullSource: boolean): void {
   fs.mkdirSync(dest, { recursive: true });
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
-    if (skipNames.has(entry.name)) continue;
+    if (shouldSkipMirrorEntry(entry.name, fullSource)) continue;
     const from = path.join(src, entry.name);
     const to = path.join(dest, entry.name);
-    if (entry.isDirectory()) copyDir(from, to, skipNames);
+    if (entry.isDirectory()) copyDir(from, to, fullSource);
     else fs.copyFileSync(from, to);
   }
 }
 
-async function defaultBranch(repo: string, token: string): Promise<string> {
-  const res = await fetch(`https://api.github.com/repos/${repo}`, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "X-GitHub-Api-Version": "2022-11-28",
-      "User-Agent": "cliodot-cli",
-    },
-  });
-  if (!res.ok) {
-    throw new Error(
-      `Cannot resolve default branch for ${repo} (HTTP ${res.status})`
-    );
+function listGitProjectFiles(root: string): string[] | null {
+  if (!fs.existsSync(path.join(root, ".git"))) return null;
+  const tracked = runCommand("git", ["ls-files", "-z"], { cwd: root });
+  if (tracked.status !== 0) return null;
+  const extra = runCommand(
+    "git",
+    ["ls-files", "-z", "--others", "--exclude-standard"],
+    { cwd: root }
+  );
+  const names = new Set<string>();
+  for (const raw of [tracked.stdout, extra.stdout]) {
+    for (const part of String(raw || "").split("\0")) {
+      if (part) names.add(part);
+    }
   }
-  const json = (await res.json()) as { default_branch?: string };
-  return json.default_branch || "main";
+  return [...names];
 }
+
+function shouldSkipGitRel(rel: string): boolean {
+  const parts = rel.split(/[\\/]/).filter(Boolean);
+  if (!parts.length) return true;
+  if (parts.some((part) => FULL_SOURCE_SKIP.has(part))) return true;
+  if (isSecretEnvFile(path.basename(rel))) return true;
+  if (rel.endsWith(".tar.gz") || rel.endsWith(".tgz")) return true;
+  return false;
+}
+
+function copyGitProject(root: string, dest: string): boolean {
+  const files = listGitProjectFiles(root);
+  if (!files || !files.length) return false;
+  for (const rel of files) {
+    if (shouldSkipGitRel(rel)) continue;
+    const from = path.join(root, rel);
+    if (!fs.existsSync(from) || !fs.statSync(from).isFile()) continue;
+    const to = path.join(dest, rel);
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    fs.copyFileSync(from, to);
+  }
+  return true;
+}
+
+function copyReleaseBuildTree(root: string, dest: string): void {
+  for (const name of ["build", "dist"]) {
+    const from = path.join(root, name);
+    if (!fs.existsSync(from) || !fs.statSync(from).isDirectory()) continue;
+    copyDir(from, path.join(dest, name), true);
+  }
+}
+
 
 function wipeWorktree(dir: string): void {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -43,24 +107,51 @@ function wipeWorktree(dir: string): void {
   }
 }
 
+function pushMirror(cwd: string, branch: string): { status: number; stderr: string; stdout: string } {
+  let last = { status: 1, stderr: "", stdout: "" };
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    last = runCommand(
+      "git",
+      [
+        "-c",
+        "http.version=HTTP/1.1",
+        "-c",
+        "http.postBuffer=524288000",
+        "push",
+        "-f",
+        "origin",
+        `HEAD:${branch}`,
+      ],
+      { cwd, inherit: false }
+    );
+    if (last.status === 0) return last;
+  }
+  return last;
+}
+
 export async function forcePushCommunityMirror(opts: {
   repo: string;
   stagingDir: string;
   version: string;
   kind: "server" | "client";
   workRoot: string;
+  /** Enterprise: copy the project source, including src. Community: staged runtime, no src. */
+  fullSource?: boolean;
 }): Promise<string> {
   const token = getGithubToken();
   if (!token) {
     throw new Error(
-      "GITHUB_TOKEN / GHCR_TOKEN required to force-push community release mirrors."
+      "GITHUB_TOKEN / GHCR_TOKEN required to force-push release mirrors."
     );
   }
   if (!fs.existsSync(opts.stagingDir)) {
-    throw new Error(`Staging directory not found: ${opts.stagingDir}`);
+    throw new Error(`Source directory not found: ${opts.stagingDir}`);
   }
+  const fullSource = opts.fullSource === true;
 
-  const branch = await defaultBranch(opts.repo, token);
+  await ensureRepoHasCommit(opts.repo);
+
+  const branch = await getRepoDefaultBranch(opts.repo);
   const mirrorRoot = path.join(
     opts.workRoot,
     ".cliodot-release",
@@ -85,7 +176,7 @@ export async function forcePushCommunityMirror(opts: {
     });
     if (init.status !== 0) {
       throw new Error(
-        `Failed to prepare community mirror checkout for ${opts.repo}: ${
+        `Failed to prepare release mirror checkout for ${opts.repo}: ${
           clone.stderr || clone.stdout || init.stderr || init.stdout
         }`
       );
@@ -102,11 +193,13 @@ export async function forcePushCommunityMirror(opts: {
     : null;
 
   wipeWorktree(mirrorRoot);
-  copyDir(
-    opts.stagingDir,
-    mirrorRoot,
-    new Set(["node_modules", ".git", "src"])
-  );
+  if (fullSource) {
+    const copied = copyGitProject(opts.stagingDir, mirrorRoot);
+    if (!copied) copyDir(opts.stagingDir, mirrorRoot, true);
+    copyReleaseBuildTree(opts.stagingDir, mirrorRoot);
+  } else {
+    copyDir(opts.stagingDir, mirrorRoot, false);
+  }
 
   if (!fs.existsSync(path.join(mirrorRoot, "LICENSE")) && licenseBackup) {
     fs.writeFileSync(licensePath, licenseBackup);
@@ -149,21 +242,17 @@ export async function forcePushCommunityMirror(opts: {
     );
     if (commit.status !== 0) {
       throw new Error(
-        `Failed to commit community mirror for ${opts.repo}: ${
+        `Failed to commit release mirror for ${opts.repo}: ${
           commit.stderr || commit.stdout
         }`
       );
     }
   }
 
-  const push = runCommand(
-    "git",
-    ["push", "-f", "origin", `HEAD:${branch}`],
-    { cwd: mirrorRoot, inherit: false }
-  );
+  const push = pushMirror(mirrorRoot, branch);
   if (push.status !== 0) {
     throw new Error(
-      `Failed to force-push community mirror to ${opts.repo} (${branch}): ${
+      `Failed to force-push release mirror to ${opts.repo} (${branch}): ${
         push.stderr || push.stdout
       }`
     );

@@ -51,9 +51,9 @@ export function resolveReleaseStageFlags(opts: {
   const only = parseReleaseStages(opts.only);
   if (!only) {
     return {
-      doDocker: opts.docker !== false,
+      doDocker: opts.docker === true || Boolean(opts.push),
       doNative: opts.native !== false,
-      npmPublish: opts.npmPublish !== false,
+      npmPublish: opts.npmPublish === true,
       upload: Boolean(opts.upload),
       push: Boolean(opts.push),
       only: null,

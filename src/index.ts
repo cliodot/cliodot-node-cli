@@ -275,7 +275,7 @@ const release = program
 
 release
   .command("server")
-  .description("Build/publish SERVER (community: build:dev → force-push → GitHub release tarball)")
+  .description("Build server tarball (opt in: --docker, --npm, --push, --upload)")
   .requiredOption("--version <ver>", "Version (e.g. 1.2.3)")
   .option("--dir <path>", "Local server checkout (default: this repo if detected)")
   .option(
@@ -286,21 +286,24 @@ release
   .option("--ref <ref>", "Git ref for clone (default: v<version>)")
   .option(
     "--release-repo <owner/name>",
-    "Repo for release assets / community mirror (default: cliodot/cliodot-community-server)",
-    CLI_DEFAULTS.serverReleaseRepo
+    "Repo for git push + GitHub Release (default: community server)"
+  )
+  .option(
+    "--enterprise",
+    "Full-source push + release on cliodot/cliodot-enterprise-server (implies --upload, private)"
   )
   .option("--image <name>", "GHCR image", CLI_DEFAULTS.serverImage)
   .option(
     "--only <stages>",
     "Run only these stages (comma-separated): docker,npm,tarball"
   )
-  .option("--docker", "Build Docker image (default on)", true)
+  .option("--docker", "Build Docker image (off by default)", false)
   .option("--no-docker", "Skip Docker")
-  .option("--native", "Build native tarball (default on)", true)
+  .option("--native", "Build native tarball (default)", true)
   .option("--no-native", "Skip native tarball")
-  .option("--push", "Push image to GHCR")
+  .option("--push", "Build and push image to GHCR")
   .option("--upload", "Upload tarball to GitHub Releases")
-  .option("--npm", "Publish @cliodot/server to npm (default on for public)", true)
+  .option("--npm", "Publish @cliodot/server to npm (off by default)", false)
   .option("--no-npm", "Skip npm publish")
   .option("--dry-run", "Pass --dry-run to npm publish")
   .option("--public", "Public obfuscated artifacts (default on)", true)
@@ -314,6 +317,7 @@ release
       serverRepo: opts.repo,
       serverRef: opts.ref,
       releaseRepo: opts.releaseRepo,
+      enterprise: opts.enterprise === true,
       image: opts.image,
       only: opts.only,
       docker: opts.docker,
@@ -329,7 +333,7 @@ release
 
 release
   .command("client")
-  .description("Build/publish CLIENT (community: build → force-push → GitHub release tarball)")
+  .description("Build client tarball (opt in: --docker, --npm, --push, --upload)")
   .requiredOption("--version <ver>", "Version (e.g. 1.2.3)")
   .option("--dir <path>", "Local client checkout (skips clone)")
   .option(
@@ -340,21 +344,24 @@ release
   .option("--ref <ref>", "Git ref for clone (default: v<version>)")
   .option(
     "--release-repo <owner/name>",
-    "Repo for release assets / community mirror (default: cliodot/cliodot-community-client)",
-    CLI_DEFAULTS.clientReleaseRepo
+    "Repo for git push + GitHub Release (default: community client)"
+  )
+  .option(
+    "--enterprise",
+    "Full-source push + release on cliodot/cliodot-enterprise-client (implies --upload, private)"
   )
   .option("--image <name>", "GHCR image", CLI_DEFAULTS.clientImage)
   .option(
     "--only <stages>",
     "Run only these stages (comma-separated): docker,npm,tarball"
   )
-  .option("--docker", "Build Docker image (default on)", true)
+  .option("--docker", "Build Docker image (off by default)", false)
   .option("--no-docker", "Skip Docker")
-  .option("--native", "Build native tarball (default on)", true)
+  .option("--native", "Build native tarball (default)", true)
   .option("--no-native", "Skip native tarball")
-  .option("--push", "Push image to GHCR")
+  .option("--push", "Build and push image to GHCR")
   .option("--upload", "Upload tarball to GitHub Releases")
-  .option("--npm", "Publish @cliodot/client to npm (default on for public)", true)
+  .option("--npm", "Publish @cliodot/client to npm (off by default)", false)
   .option("--no-npm", "Skip npm publish")
   .option("--dry-run", "Pass --dry-run to npm publish")
   .option("--public", "Public artifacts (default on)", true)
@@ -366,6 +373,7 @@ release
       version: opts.version,
       clientDir: opts.dir,
       clientRepo: opts.repo,
+      enterprise: opts.enterprise === true,
       clientRef: opts.ref,
       releaseRepo: opts.releaseRepo,
       image: opts.image,

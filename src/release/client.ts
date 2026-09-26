@@ -3,6 +3,7 @@ import * as p from "@clack/prompts";
 import {
   CLI_DEFAULTS,
   isCommunityReleaseRepo,
+  isEnterpriseReleaseRepo,
   mirrorsReleaseBuild,
 } from "../config.js";
 import { buildAndPushClientImage } from "./docker.js";
@@ -20,6 +21,7 @@ import {
   stageClientRelease,
 } from "./tarball.js";
 import { findRepoRoot, normalizeVersion, rmrf } from "./util.js";
+import { describeGithubTokenSource, getGithubToken } from "../util/fs.js";
 import { resolveReleaseStageFlags } from "./stages.js";
 
 export type ReleaseClientOptions = {
@@ -28,6 +30,7 @@ export type ReleaseClientOptions = {
   clientRepo?: string;
   clientRef?: string;
   releaseRepo?: string;
+  enterprise?: boolean;
   image?: string;
   only?: string | string[];
   docker?: boolean;
@@ -57,15 +60,20 @@ export async function releaseClient(opts: ReleaseClientOptions): Promise<void> {
   const doDocker = stages.doDocker;
   const doNative = stages.doNative;
   const push = stages.push;
-  const upload = stages.upload;
+  const upload = stages.upload || Boolean(opts.enterprise);
   const npmPublish = stages.npmPublish;
-  const isPublic = opts.public !== false;
-  const obfuscate = opts.obfuscate === true;
   const workRoot = findRepoRoot();
   const outDir = path.join(workRoot, ".cliodot-release", "client", version);
-  const releaseRepo = opts.releaseRepo || CLI_DEFAULTS.clientReleaseRepo;
+  const releaseRepo =
+    opts.releaseRepo ||
+    (opts.enterprise
+      ? CLI_DEFAULTS.clientEnterpriseReleaseRepo
+      : CLI_DEFAULTS.clientReleaseRepo);
   const community = isCommunityReleaseRepo(releaseRepo);
+  const enterprise = isEnterpriseReleaseRepo(releaseRepo);
   const mirrorBuild = mirrorsReleaseBuild(releaseRepo);
+  const isPublic = enterprise ? false : opts.public !== false;
+  const obfuscate = opts.obfuscate === true;
   const image = opts.image || CLI_DEFAULTS.clientImage;
   const npmName = CLI_DEFAULTS.clientNpmPackage;
 
@@ -73,23 +81,39 @@ export async function releaseClient(opts: ReleaseClientOptions): Promise<void> {
     `Release client ${version} (${
       community
         ? "community"
-        : isPublic
-          ? "public"
-          : "private"
+        : enterprise
+          ? "enterprise + full source"
+          : isPublic
+            ? "public"
+            : "private"
     }${obfuscate ? " + obfuscated" : ""})`
   );
-  if (stages.only) {
-    p.log.info(`stages: ${[...stages.only].join(", ")}`);
-  } else {
+  const enabled = [
+    doDocker ? "docker" : null,
+    npmPublish ? "npm" : null,
+    doNative
+      ? enterprise
+        ? "tarball (+ full-source push)"
+        : mirrorBuild
+          ? "tarball (+ build push)"
+          : "tarball"
+      : null,
+  ].filter(Boolean);
+  p.log.info(`stages: ${enabled.join(" → ") || "none"}`);
+  p.log.info(`artifact release repo: ${releaseRepo}`);
+  if (upload || doDocker || npmPublish) {
+    const tokenSource = describeGithubTokenSource();
     p.log.info(
-      `order: docker → npm → ${
-        mirrorBuild ? "build push (-f, no src) → " : ""
-      }tarball release (stages continue on failure)`
+      getGithubToken()
+        ? `GitHub token: ${tokenSource || "environment"}`
+        : "GitHub token: missing (packages/cliodot-cli/.env)"
     );
   }
-  p.log.info(`artifact release repo: ${releaseRepo}`);
-  p.log.info(`GHCR image: ${image}`);
-  p.log.info(`npm: ${npmName}`);
+  if (enterprise) {
+    p.log.info("enterprise: private repo, full checkout including src, plus runtime tarball");
+  }
+  if (doDocker) p.log.info(`GHCR image: ${image}`);
+  if (npmPublish) p.log.info(`npm: ${npmName}`);
   p.log.info(`obfuscate: ${obfuscate ? "yes" : "no"}`);
 
   if (upload) {
@@ -219,22 +243,33 @@ export async function releaseClient(opts: ReleaseClientOptions): Promise<void> {
     }
   }
 
-  if (upload && staging && mirrorBuild) {
-    spinner.start(`Force-pushing client build to ${releaseRepo} (-f, no src)`);
-    try {
-      const mirrorUrl = await forcePushCommunityMirror({
-        repo: releaseRepo,
-        stagingDir: staging,
-        version,
-        kind: "client",
-        workRoot,
-      });
-      spinner.stop(`Pushed build → ${mirrorUrl}`);
-      produced.push(mirrorUrl);
-    } catch (err) {
-      spinner.stop("Build push failed");
-      p.log.warn(errMsg(err));
-      failures.push(`build-push: ${errMsg(err)}`);
+  if (upload && mirrorBuild) {
+    const mirrorSource = enterprise ? client.dir : staging;
+    if (!mirrorSource) {
+      p.log.warn("Skipping git push — source directory unavailable");
+      failures.push("build-push: skipped (no source)");
+    } else {
+      spinner.start(
+        enterprise
+          ? `Force-pushing client source to ${releaseRepo} (includes src, skips caches)`
+          : `Force-pushing client build to ${releaseRepo} (-f, no src)`
+      );
+      try {
+        const mirrorUrl = await forcePushCommunityMirror({
+          repo: releaseRepo,
+          stagingDir: mirrorSource,
+          version,
+          kind: "client",
+          workRoot,
+          fullSource: enterprise,
+        });
+        spinner.stop(`Pushed ${enterprise ? "full source" : "build"} → ${mirrorUrl}`);
+        produced.push(mirrorUrl);
+      } catch (err) {
+        spinner.stop("Build push failed");
+        p.log.warn(errMsg(err));
+        failures.push(`build-push: ${errMsg(err)}`);
+      }
     }
   }
 
@@ -253,13 +288,17 @@ export async function releaseClient(opts: ReleaseClientOptions): Promise<void> {
           notes: [
             community
               ? `COMMUNITY client release ${version}`
-              : `${isPublic ? "PUBLIC" : "PRIVATE"} client release ${version}`,
+              : enterprise
+                ? `ENTERPRISE client release ${version} (full source on repo)`
+                : `${isPublic ? "PUBLIC" : "PRIVATE"} client release ${version}`,
             `Source: ${client.repo || client.dir}`,
             doDocker ? `GHCR: ${image}:${version}` : "",
             npmPublish ? `npm: ${npmName}@${version}` : "",
-            obfuscate
-              ? "Build: production + obfuscated JS; source maps stripped."
-              : "Build: production standalone.",
+            enterprise
+              ? "Git snapshot is the full checkout including src. Tarball is the production runtime."
+              : obfuscate
+                ? "Build: production + obfuscated JS; source maps stripped."
+                : "Build: production standalone.",
           ]
             .filter(Boolean)
             .join("\n"),
@@ -296,7 +335,8 @@ export async function releaseClient(opts: ReleaseClientOptions): Promise<void> {
 
   p.note(
     [
-      `client: ${client.repo || client.dir} (${client.source})`,
+      `release repo: ${releaseRepo}`,
+      `source: ${client.repo || client.dir} (${client.source})`,
       ...produced.map((x) => `  - ${x}`),
       ...assets.map((x) => `  - ${x}`),
       ...(failures.length

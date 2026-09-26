@@ -47,7 +47,7 @@ export function isEnterpriseReleaseRepo(repo: string): boolean {
   );
 }
 
-/** Community and enterprise release repos receive the staged build, not source. */
+/** Community and enterprise release repos receive a git snapshot plus the GitHub Release. */
 export function mirrorsReleaseBuild(repo: string): boolean {
   return isCommunityReleaseRepo(repo) || isEnterpriseReleaseRepo(repo);
 }

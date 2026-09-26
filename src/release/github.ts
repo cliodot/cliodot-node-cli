@@ -1,22 +1,41 @@
 import fs from "fs";
 import path from "path";
 import https from "https";
-import { getGithubToken, runCommand } from "../util/fs.js";
+import {
+  describeGithubTokenSource,
+  getGithubToken,
+  runCommand,
+} from "../util/fs.js";
 import { versionTag } from "./util.js";
+
+function tokenHint(): string {
+  const source = describeGithubTokenSource();
+  return source
+    ? `Token loaded from ${source}.`
+    : "No GITHUB_TOKEN in environment or packages/cliodot-cli/.env.";
+}
+
+function githubFailure(repo: string, res: { status: number; json?: any }, action: string): string {
+  const detail = res.json?.message ? `: ${res.json.message}` : "";
+  if (res.status === 0) {
+    return `GitHub API unreachable while ${action} ${repo}${detail}. ${tokenHint()}`;
+  }
+  return `Cannot ${action} ${repo} (HTTP ${res.status})${detail}. ${tokenHint()}`;
+}
 
 export async function assertRepoIsPrivate(repo: string): Promise<void> {
   const token = getGithubToken();
   if (!token) {
     throw new Error(
-      "GITHUB_TOKEN / GHCR_TOKEN required to verify release repo privacy."
+      "GITHUB_TOKEN / GHCR_TOKEN required to verify release repo privacy. " +
+        "Put it in packages/cliodot-cli/.env."
     );
   }
   const res = await githubJson(`https://api.github.com/repos/${repo}`, token);
-  if (!res.ok || !res.json) {
+  if (!res.ok || !res.json || res.status === 0) {
     throw new Error(
-      `Cannot verify ${repo} is private (HTTP ${res.status}). ` +
-        `App artifacts must go to a private repo you can access with GITHUB_TOKEN. ` +
-        `Pass --release-repo owner/private-repo (default is cliodot/cliodot-community-server).`
+      `${githubFailure(repo, res, "verifying")}` +
+        ` Enterprise releases require a private repo.`
     );
   }
   if (res.json.private !== true) {
@@ -37,12 +56,24 @@ export async function assertRepoAccessible(repo: string): Promise<{
     );
   }
   const res = await githubJson(`https://api.github.com/repos/${repo}`, token);
-  if (!res.ok || !res.json) {
-    throw new Error(
-      `Cannot access release repo ${repo} (HTTP ${res.status}). Check token scopes and repo name.`
-    );
+  if (!res.ok || !res.json || res.status === 0) {
+    throw new Error(githubFailure(repo, res, "accessing"));
   }
   return { private: res.json.private === true };
+}
+
+export async function getRepoDefaultBranch(repo: string): Promise<string> {
+  const token = getGithubToken();
+  if (!token) {
+    throw new Error(
+      "GITHUB_TOKEN / GHCR_TOKEN required. Put it in packages/cliodot-cli/.env."
+    );
+  }
+  const res = await githubJson(`https://api.github.com/repos/${repo}`, token);
+  if (!res.ok || !res.json || res.status === 0) {
+    throw new Error(githubFailure(repo, res, "accessing"));
+  }
+  return String(res.json.default_branch || "main");
 }
 
 export async function ensureGhcrPackageVisibility(opts: {
@@ -100,6 +131,75 @@ export async function ensureGhcrPackagePrivate(opts: {
   await ensureGhcrPackageVisibility({ image: opts.image, visibility: "private" });
 }
 
+async function repoAlreadyHasCommit(
+  repo: string,
+  token: string,
+  branch: string
+): Promise<boolean> {
+  const commits = await githubJson(
+    `https://api.github.com/repos/${repo}/commits?per_page=1&sha=${encodeURIComponent(branch)}`,
+    token
+  );
+  if (commits.ok && Array.isArray(commits.json) && commits.json.length > 0) {
+    return true;
+  }
+  const readme = await githubJson(
+    `https://api.github.com/repos/${repo}/contents/README.md?ref=${encodeURIComponent(branch)}`,
+    token
+  );
+  return Boolean(readme.ok && readme.json?.sha);
+}
+
+/** GitHub cannot create a Release on a repo with no commits. */
+export async function ensureRepoHasCommit(repo: string): Promise<void> {
+  const token = getGithubToken();
+  if (!token) {
+    throw new Error("GITHUB_TOKEN / GHCR_TOKEN required to initialize the release repo.");
+  }
+  const info = await githubJson(`https://api.github.com/repos/${repo}`, token);
+  if (!info.ok || !info.json || info.status === 0) {
+    throw new Error(githubFailure(repo, info, "accessing"));
+  }
+  const branch = String(info.json.default_branch || "main");
+  if (await repoAlreadyHasCommit(repo, token, branch)) return;
+
+  const existing = await githubJson(
+    `https://api.github.com/repos/${repo}/contents/README.md?ref=${encodeURIComponent(branch)}`,
+    token
+  );
+  if (existing.ok && existing.json?.sha) return;
+
+  const body = [
+    `# ${repo}`,
+    "",
+    "Initialized by `@cliodot/cli` so GitHub Releases can be created.",
+    "",
+  ].join("\n");
+  const payload: Record<string, string> = {
+    message: "Initialize release repository",
+    content: Buffer.from(body, "utf8").toString("base64"),
+    branch,
+  };
+  if (typeof existing.json?.sha === "string") {
+    payload.sha = existing.json.sha;
+  }
+  const seeded = await githubJson(
+    `https://api.github.com/repos/${repo}/contents/README.md`,
+    token,
+    { method: "PUT", body: payload }
+  );
+  if (seeded.ok) return;
+  if (
+    seeded.status === 422 &&
+    /sha/i.test(JSON.stringify(seeded.json || {}))
+  ) {
+    return;
+  }
+  throw new Error(
+    `Cannot initialize empty repo ${repo} (HTTP ${seeded.status}): ${JSON.stringify(seeded.json)}`
+  );
+}
+
 export async function ensureGithubRelease(opts: {
   repo: string;
   version: string;
@@ -136,20 +236,30 @@ export async function ensureGithubRelease(opts: {
     };
   }
 
-  const created = await githubJson(
+  const createBody = {
+    tag_name: tag,
+    name: opts.title || tag,
+    body: opts.notes || `Cliodot release ${tag}`,
+    draft: Boolean(opts.draft),
+    prerelease: false,
+  };
+  let created = await githubJson(
     `https://api.github.com/repos/${opts.repo}/releases`,
     token,
-    {
-      method: "POST",
-      body: {
-        tag_name: tag,
-        name: opts.title || tag,
-        body: opts.notes || `Cliodot release ${tag}`,
-        draft: Boolean(opts.draft),
-        prerelease: false,
-      },
-    }
+    { method: "POST", body: createBody }
   );
+  if (
+    !created.ok &&
+    created.status === 422 &&
+    /empty/i.test(JSON.stringify(created.json || {}))
+  ) {
+    await ensureRepoHasCommit(opts.repo);
+    created = await githubJson(
+      `https://api.github.com/repos/${opts.repo}/releases`,
+      token,
+      { method: "POST", body: createBody }
+    );
+  }
   if (!created.ok || !created.json?.id) {
     throw new Error(
       `Failed to create release ${tag} on ${opts.repo} (HTTP ${created.status}): ${JSON.stringify(created.json)}`
@@ -392,32 +502,41 @@ async function githubJson(
   token: string,
   opts?: { method?: string; body?: unknown }
 ): Promise<{ ok: boolean; status: number; json?: any }> {
-  try {
-    const res = await fetch(url, {
-      method: opts?.method || "GET",
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${token}`,
-        "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "cliodot-cli",
-        ...(opts?.body ? { "Content-Type": "application/json" } : {}),
-      },
-      body: opts?.body ? JSON.stringify(opts.body) : undefined,
-    });
-    if (res.status === 204 || opts?.method === "DELETE") {
-      return { ok: res.ok || res.status === 204, status: res.status };
+  let last: { ok: boolean; status: number; json?: any } = {
+    ok: false,
+    status: 0,
+    json: { message: "GitHub request failed" },
+  };
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: opts?.method || "GET",
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${token}`,
+          "X-GitHub-Api-Version": "2022-11-28",
+          "User-Agent": "cliodot-cli",
+          ...(opts?.body ? { "Content-Type": "application/json" } : {}),
+        },
+        body: opts?.body ? JSON.stringify(opts.body) : undefined,
+      });
+      if (res.status === 204 || opts?.method === "DELETE") {
+        return { ok: res.ok || res.status === 204, status: res.status };
+      }
+      const json = await res.json().catch(() => undefined);
+      return { ok: res.ok, status: res.status, json };
+    } catch (err) {
+      last = {
+        ok: false,
+        status: 0,
+        json: {
+          message: err instanceof Error ? err.message : String(err),
+        },
+      };
+      if (attempt < 3) await sleep(750 * attempt);
     }
-    const json = await res.json().catch(() => undefined);
-    return { ok: res.ok, status: res.status, json };
-  } catch (err) {
-    return {
-      ok: false,
-      status: 0,
-      json: {
-        message: err instanceof Error ? err.message : String(err),
-      },
-    };
   }
+  return last;
 }
 
 export function requireGhCli(): void {
