@@ -169,13 +169,15 @@ const auth = program
 auth
   .command("login")
   .description("Open the app in a browser to log in (stores ~/.cliodot/auth.json)")
-  .option("--api-url <url>", "Cliodot API base (default: staging)")
-  .option("--app-url <url>", "Frontend origin (default: inferred from API URL)")
+  .option("--dir <path>", "Instance directory (default: current directory)")
+  .option("--api-url <url>", "API base (overrides DEPLOYMENT_REF)")
+  .option("--app-url <url>", "Frontend origin (overrides CLIODOT_CLIENT_URL)")
   .option("--api-key <key>", "API key (CI / non-interactive)")
   .option("--api-secret <secret>", "API secret")
   .option("--github-token <pat>", "Optional GitHub token (otherwise uses gh/git on this machine)")
   .action(async (opts) => {
     await runAuthLogin({
+      dir: opts.dir,
       apiUrl: opts.apiUrl,
       appUrl: opts.appUrl,
       apiKey: opts.apiKey,

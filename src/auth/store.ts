@@ -1,7 +1,6 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { CLI_DEFAULTS } from "../config.js";
 
 export const AUTH_STORE_VERSION = 1;
 
@@ -28,9 +27,11 @@ export function authFilePath(): string {
 }
 
 export function normalizeApiUrl(input?: string): string {
-  const raw = String(input || CLI_DEFAULTS.clientApiBaseUrl).trim();
+  const raw = String(input || "").trim();
   if (!raw) {
-    throw new Error("API URL is required");
+    throw new Error(
+      "DEPLOYMENT_REF is required for login. Set it in the instance .env, or pass --api-url."
+    );
   }
   const url = raw.replace(/\/+$/, "");
   if (url.endsWith("/api-core/cliodot")) return url;
@@ -38,17 +39,18 @@ export function normalizeApiUrl(input?: string): string {
   return `${url}/api-core/cliodot`;
 }
 
-export function normalizeAppUrl(input?: string, apiUrl?: string): string {
-  const explicit = String(input || process.env.CLIODOT_APP_URL || "").trim().replace(/\/+$/, "");
-  if (explicit) return explicit;
+export function normalizeAppUrl(input?: string): string | undefined {
+  const raw = String(input || "").trim().replace(/\/+$/, "");
+  if (!raw) return undefined;
   try {
-    const api = new URL(normalizeApiUrl(apiUrl));
-    if (api.hostname === "localhost" || api.hostname === "127.0.0.1") {
-      return `${api.protocol}//${api.hostname}:${CLI_DEFAULTS.defaultClientPort}`;
-    }
-    return api.origin;
+    const url = new URL(raw.includes("://") ? raw : `https://${raw}`);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
+    return (
+      url.origin +
+      (url.pathname === "/" ? "" : url.pathname.replace(/\/+$/, ""))
+    );
   } catch {
-    return CLI_DEFAULTS.clientAppUrl;
+    return undefined;
   }
 }
 

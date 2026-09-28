@@ -169,11 +169,15 @@ cliodot auth logout
 
 `cliodot auth github` uses the GitHub session already on your machine (`gh auth login`, `GITHUB_TOKEN`, or `git credential` for github.com). `--token` is only needed if nothing is connected. SSH remotes cannot call the GitHub API.
 
-Credentials are stored at `~/.cliodot/auth.json`. `auth login` opens the app (`/cli-login?session=...`). Sign in there; the CLI waits. No email or password on the terminal.
+Credentials are stored at `~/.cliodot/auth.json`. Run `cliodot auth login` from the instance directory — it reads **`DEPLOYMENT_REF`** (API, including API key / secret) and **`CLIODOT_CLIENT_URL`** (browser) from that `.env`. Pass flags when you are not in that directory, or when you already know the URL.
 
 ```bash
-cliodot auth login --api-url http://localhost:8901
+cliodot auth login
+cliodot auth login --api-url https://api.example.com
+cliodot auth login --api-url https://api.example.com --app-url https://app.example.com
 cliodot auth login --api-key ck_... --api-secret sk_...
+cliodot auth login --api-url https://api.example.com --api-key ck_... --api-secret sk_...
+cliodot auth login --dir /path/to/instance
 ```
 
 ### Workspace (GitHub)

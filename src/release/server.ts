@@ -300,7 +300,6 @@ export async function releaseServer(opts: ReleaseServerOptions): Promise<void> {
           title: `Cliodot server ${version}`,
           notes: "",
         });
-        });
         for (const file of assets) {
           const name = path.basename(file);
           await uploadReleaseAsset({

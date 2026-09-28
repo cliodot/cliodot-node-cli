@@ -287,7 +287,6 @@ export async function releaseClient(opts: ReleaseClientOptions): Promise<void> {
           title: `Cliodot client ${version}`,
           notes: "",
         });
-        });
         for (const file of assets) {
           const name = path.basename(file);
           await uploadReleaseAsset({

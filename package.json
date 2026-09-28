@@ -1,6 +1,6 @@
 {
   "name": "@cliodot/cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Cliodot instance installer and manager (init, update, license, workspace, lifecycle)",
   "license": "MIT",
   "type": "module",

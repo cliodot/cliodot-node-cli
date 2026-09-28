@@ -1,5 +1,4 @@
 import * as p from "@clack/prompts";
-import { CLI_DEFAULTS } from "../config.js";
 import {
   loginWithApiKey,
   pollCliLogin,
@@ -10,10 +9,9 @@ import {
   localGithubHint,
   resolveGithubSession,
 } from "../auth/github-local.js";
+import { resolveLoginUrls } from "../auth/login-urls.js";
 import {
   clearAuth,
-  normalizeApiUrl,
-  normalizeAppUrl,
   readAuth,
   writeAuth,
 } from "../auth/store.js";
@@ -27,6 +25,7 @@ function cancelIf(value: unknown): asserts value is Exclude<typeof value, symbol
 }
 
 export async function runAuthLogin(opts: {
+  dir?: string;
   apiUrl?: string;
   appUrl?: string;
   apiKey?: string;
@@ -35,10 +34,13 @@ export async function runAuthLogin(opts: {
 }): Promise<void> {
   p.intro("Cliodot login");
   const existing = readAuth();
-  const apiUrl = normalizeApiUrl(
-    opts.apiUrl || existing?.apiUrl || CLI_DEFAULTS.clientApiBaseUrl
-  );
-  const appUrl = normalizeAppUrl(opts.appUrl || existing?.appUrl, apiUrl);
+  const { apiUrl, appUrl } = resolveLoginUrls({
+    apiUrl: opts.apiUrl,
+    appUrl: opts.appUrl,
+    dir: opts.dir,
+    storedApiUrl: existing?.apiUrl,
+    storedAppUrl: existing?.appUrl,
+  });
 
   let result: {
     accessToken: string;
@@ -78,6 +80,7 @@ export async function runAuthLogin(opts: {
 
   p.log.success(`Logged in as ${result.user?.email || result.user?._id || "user"}`);
   p.log.info(`API ${apiUrl}`);
+  if (appUrl) p.log.info(`App ${appUrl}`);
   if (github) {
     p.log.info(
       `GitHub ${github.login ? `@${github.login}` : "connected"} via ${describeGithubSource(github.source)}`
@@ -159,7 +162,7 @@ export async function runAuthGithub(opts: { token?: string; clear?: boolean }): 
 
 async function loginWithBrowser(opts: {
   apiUrl: string;
-  appUrl: string;
+  appUrl?: string;
 }): Promise<{
   accessToken: string;
   tokenExpiresAt?: string;
