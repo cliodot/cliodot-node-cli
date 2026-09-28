@@ -88,7 +88,7 @@ export async function releaseServer(opts: ReleaseServerOptions): Promise<void> {
       community
         ? "community + build:dev"
         : enterprise
-          ? "enterprise + full source"
+          ? "enterprise + build snapshot"
           : isPublic
             ? "public + obfuscated"
             : "private"
@@ -99,7 +99,7 @@ export async function releaseServer(opts: ReleaseServerOptions): Promise<void> {
     npmPublish ? "npm" : null,
     doNative
       ? enterprise
-        ? "tarball (+ full-source push)"
+        ? "tarball (+ build push)"
         : mirrorBuild
           ? "tarball (+ build push)"
           : "tarball"
@@ -116,7 +116,7 @@ export async function releaseServer(opts: ReleaseServerOptions): Promise<void> {
     );
   }
   if (enterprise) {
-    p.log.info("enterprise: private repo, full checkout including src, plus runtime tarball");
+    p.log.info("enterprise: private repo, build/ + support files (no src), plus runtime tarball");
   }
   if (doDocker) p.log.info(`GHCR image: ${image}`);
   if (npmPublish) p.log.info(`npm: ${npmName}`);
@@ -264,7 +264,7 @@ export async function releaseServer(opts: ReleaseServerOptions): Promise<void> {
     } else {
       spinner.start(
         enterprise
-          ? `Force-pushing server source + build/ to ${releaseRepo}`
+          ? `Force-pushing server build + support files to ${releaseRepo} (no src)`
           : `Force-pushing server build to ${releaseRepo} (-f, no src)`
       );
       try {
@@ -276,7 +276,7 @@ export async function releaseServer(opts: ReleaseServerOptions): Promise<void> {
           workRoot,
           fullSource: enterprise,
         });
-        spinner.stop(`Pushed ${enterprise ? "full source" : "build"} → ${mirrorUrl}`);
+        spinner.stop(`Pushed ${enterprise ? "build snapshot" : "build"} → ${mirrorUrl}`);
         produced.push(mirrorUrl);
       } catch (err) {
         spinner.stop("Build push failed");
@@ -298,25 +298,8 @@ export async function releaseServer(opts: ReleaseServerOptions): Promise<void> {
           version,
           requirePrivate: !isPublic,
           title: `Cliodot server ${version}`,
-          notes: [
-            community
-              ? `COMMUNITY server release ${version}`
-              : enterprise
-                ? `ENTERPRISE server release ${version} (full source on repo)`
-                : `${isPublic ? "PUBLIC (obfuscated)" : "PRIVATE"} server release ${version}`,
-            `Source: ${server.repo || server.dir}`,
-            doDocker ? `GHCR: ${image}:${version}` : "",
-            npmPublish ? `npm: ${npmName}@${version}` : "",
-            community
-              ? "Build: build:dev (developer profile). Git snapshot is the staged runtime (no src)."
-              : enterprise
-                ? "Git snapshot is source + build/ on the enterprise default branch. Tarball is the production runtime."
-                : obfuscate
-                  ? "Build: minified + obfuscated; source maps stripped."
-                  : "Build: minify only.",
-          ]
-            .filter(Boolean)
-            .join("\n"),
+          notes: "",
+        });
         });
         for (const file of assets) {
           const name = path.basename(file);

@@ -239,7 +239,7 @@ export async function ensureGithubRelease(opts: {
   const createBody = {
     tag_name: tag,
     name: opts.title || tag,
-    body: opts.notes || `Cliodot release ${tag}`,
+    body: opts.notes !== undefined ? opts.notes : `Cliodot release ${tag}`,
     draft: Boolean(opts.draft),
     prerelease: false,
   };

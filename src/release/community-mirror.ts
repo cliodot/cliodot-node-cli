@@ -9,7 +9,7 @@ function isSecretEnvFile(name: string): boolean {
   return name === ".env" || name.startsWith(".env.");
 }
 
-const FULL_SOURCE_SKIP = new Set([
+const MIRROR_SKIP = new Set([
   "node_modules",
   ".git",
   ".DS_Store",
@@ -22,81 +22,85 @@ const FULL_SOURCE_SKIP = new Set([
   ".nyc_output",
   ".keys",
   ".next",
+  "src",
 ]);
 
-function shouldSkipMirrorEntry(name: string, fullSource: boolean): boolean {
-  if (name === "node_modules" || name === ".git" || name === ".DS_Store") {
-    return true;
-  }
+const ENTERPRISE_SUPPORT = [
+  ".github",
+  "package.json",
+  "package-lock.json",
+  "yarn.lock",
+  "pnpm-lock.yaml",
+  "package-publish.json",
+  ".env.example",
+  "env.example",
+  "ecosystem.config.js",
+  "ecosystem.config.cjs",
+  "ecosystem.config.mjs",
+  "Dockerfile",
+  "docker-compose.yml",
+  "docker-compose.yaml",
+  ".dockerignore",
+  "README.md",
+  "LICENSE",
+  ".nvmrc",
+];
+
+const ENTERPRISE_SERVER_TREE = [
+  "build",
+  "schemas",
+  "scripts",
+  "email",
+  "deploy",
+  ...ENTERPRISE_SUPPORT,
+];
+
+const ENTERPRISE_CLIENT_TREE = [
+  "build",
+  "dist",
+  "public",
+  "static",
+  "next.config.js",
+  "next.config.mjs",
+  "next.config.ts",
+  ...ENTERPRISE_SUPPORT,
+];
+
+function shouldSkipMirrorEntry(name: string): boolean {
+  if (MIRROR_SKIP.has(name)) return true;
   if (isSecretEnvFile(name)) return true;
-  if (fullSource) {
-    return (
-      FULL_SOURCE_SKIP.has(name) ||
-      name.endsWith(".tar.gz") ||
-      name.endsWith(".tgz")
-    );
-  }
-  return name === "src";
+  return name.endsWith(".tar.gz") || name.endsWith(".tgz");
 }
 
-function copyDir(src: string, dest: string, fullSource: boolean): void {
+function copyDir(src: string, dest: string): void {
   fs.mkdirSync(dest, { recursive: true });
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
-    if (shouldSkipMirrorEntry(entry.name, fullSource)) continue;
+    if (shouldSkipMirrorEntry(entry.name)) continue;
     const from = path.join(src, entry.name);
     const to = path.join(dest, entry.name);
-    if (entry.isDirectory()) copyDir(from, to, fullSource);
+    if (entry.isDirectory()) copyDir(from, to);
     else fs.copyFileSync(from, to);
   }
 }
 
-function listGitProjectFiles(root: string): string[] | null {
-  if (!fs.existsSync(path.join(root, ".git"))) return null;
-  const tracked = runCommand("git", ["ls-files", "-z"], { cwd: root });
-  if (tracked.status !== 0) return null;
-  const extra = runCommand(
-    "git",
-    ["ls-files", "-z", "--others", "--exclude-standard"],
-    { cwd: root }
-  );
-  const names = new Set<string>();
-  for (const raw of [tracked.stdout, extra.stdout]) {
-    for (const part of String(raw || "").split("\0")) {
-      if (part) names.add(part);
-    }
-  }
-  return [...names];
-}
-
-function shouldSkipGitRel(rel: string): boolean {
-  const parts = rel.split(/[\\/]/).filter(Boolean);
-  if (!parts.length) return true;
-  if (parts.some((part) => FULL_SOURCE_SKIP.has(part))) return true;
-  if (isSecretEnvFile(path.basename(rel))) return true;
-  if (rel.endsWith(".tar.gz") || rel.endsWith(".tgz")) return true;
-  return false;
-}
-
-function copyGitProject(root: string, dest: string): boolean {
-  const files = listGitProjectFiles(root);
-  if (!files || !files.length) return false;
-  for (const rel of files) {
-    if (shouldSkipGitRel(rel)) continue;
-    const from = path.join(root, rel);
-    if (!fs.existsSync(from) || !fs.statSync(from).isFile()) continue;
-    const to = path.join(dest, rel);
+function copyNamed(root: string, dest: string, name: string): void {
+  const from = path.join(root, name);
+  if (!fs.existsSync(from)) return;
+  const to = path.join(dest, name);
+  if (fs.statSync(from).isDirectory()) copyDir(from, to);
+  else {
     fs.mkdirSync(path.dirname(to), { recursive: true });
     fs.copyFileSync(from, to);
   }
-  return true;
 }
 
-function copyReleaseBuildTree(root: string, dest: string): void {
-  for (const name of ["build", "dist"]) {
-    const from = path.join(root, name);
-    if (!fs.existsSync(from) || !fs.statSync(from).isDirectory()) continue;
-    copyDir(from, path.join(dest, name), true);
-  }
+function copyEnterpriseBuildSnapshot(
+  root: string,
+  dest: string,
+  kind: "server" | "client"
+): void {
+  const names = kind === "client" ? ENTERPRISE_CLIENT_TREE : ENTERPRISE_SERVER_TREE;
+  for (const name of names) copyNamed(root, dest, name);
 }
 
 
@@ -135,7 +139,7 @@ export async function forcePushCommunityMirror(opts: {
   version: string;
   kind: "server" | "client";
   workRoot: string;
-  /** Enterprise: copy the project source, including src. Community: staged runtime, no src. */
+  /** Enterprise: compiled build + support files, no src. Community: staged runtime, no src. */
   fullSource?: boolean;
 }): Promise<string> {
   const token = getGithubToken();
@@ -194,11 +198,9 @@ export async function forcePushCommunityMirror(opts: {
 
   wipeWorktree(mirrorRoot);
   if (fullSource) {
-    const copied = copyGitProject(opts.stagingDir, mirrorRoot);
-    if (!copied) copyDir(opts.stagingDir, mirrorRoot, true);
-    copyReleaseBuildTree(opts.stagingDir, mirrorRoot);
+    copyEnterpriseBuildSnapshot(opts.stagingDir, mirrorRoot, opts.kind);
   } else {
-    copyDir(opts.stagingDir, mirrorRoot, false);
+    copyDir(opts.stagingDir, mirrorRoot);
   }
 
   if (!fs.existsSync(path.join(mirrorRoot, "LICENSE")) && licenseBackup) {

@@ -290,7 +290,7 @@ release
   )
   .option(
     "--enterprise",
-    "Full-source push + release on cliodot/cliodot-enterprise-server (implies --upload, private)"
+    "Build snapshot (no src) + release on cliodot/cliodot-enterprise-server (implies --upload, private)"
   )
   .option("--image <name>", "GHCR image", CLI_DEFAULTS.serverImage)
   .option(
@@ -348,7 +348,7 @@ release
   )
   .option(
     "--enterprise",
-    "Full-source push + release on cliodot/cliodot-enterprise-client (implies --upload, private)"
+    "Build snapshot (no src) + release on cliodot/cliodot-enterprise-client (implies --upload, private)"
   )
   .option("--image <name>", "GHCR image", CLI_DEFAULTS.clientImage)
   .option(
